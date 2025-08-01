@@ -1,48 +1,41 @@
+from flask import Flask, request, jsonify
+import pandas as pd
+import numpy as np
+import joblib
 import os
 import gdown
-import pickle
-import numpy as np
-from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# Step 1: Download model from Google Drive if not already present
-MODEL_FILE = "crime_model.pkl"
-GOOGLE_DRIVE_FILE_ID = "1iH9JsBwMPkHV_Rd0W-91-LGS2QRB6k6c"
-MODEL_URL = f"https://drive.google.com/uc?id={GOOGLE_DRIVE_FILE_ID}"
+# Define path and Google Drive direct download ID
+MODEL_PATH = "crime_model.pkl"
+DRIVE_URL = "https://drive.google.com/uc?export=download&id=1iH9JsBwMPkHV_Rd0W-91-LGS2QRB6k6c"
 
-if not os.path.exists(MODEL_FILE):
+# Download model from Google Drive if not already present
+if not os.path.exists(MODEL_PATH):
     print("🔽 Downloading model from Google Drive...")
-    gdown.download(MODEL_URL, MODEL_FILE, quiet=False)
+    gdown.download(DRIVE_URL, MODEL_PATH, quiet=False)
 
-# Step 2: Load the model
-with open(MODEL_FILE, "rb") as f:
-    model = pickle.load(f)
+# Load the trained model
+print("📦 Loading crime prediction model...")
+model = joblib.load(MODEL_PATH)
 
-# Step 3: Define predict route
-@app.route("/predict", methods=["POST"])
+# Prediction route
+@app.route('/predict', methods=['POST'])
 def predict():
-    data = request.json
-
     try:
-        features = np.array([
-            data['Pincode'],
-            data['Latitude'],
-            data['Longitude'],
-            data['Zone_Name']
-        ]).reshape(1, -1)
-
-        prediction = model.predict(features)
-        return jsonify({"prediction": prediction[0]})
-
+        data = request.json  # JSON input from user
+        input_df = pd.DataFrame([data])  # Convert to DataFrame
+        prediction = model.predict(input_df)[0]  # Make prediction
+        return jsonify({'prediction': prediction})
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        return jsonify({'error': str(e)})
 
-# Step 4: Health check route
-@app.route("/")
+# Health check route
+@app.route('/')
 def home():
-    return "🚀 Crime Prediction API is up and running!"
+    return "✅ Crime Prediction API is live!"
 
-# Step 5: Run app
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+# Run locally (will be handled by gunicorn on Render)
+if __name__ == '__main__':
+    app.run(debug=True)
